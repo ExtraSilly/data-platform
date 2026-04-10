@@ -1,0 +1,72 @@
+{
+  "games_played": 11,
+  "villager_wins": 5,
+  "learned_weights": {
+    "alpha": 0.368,
+    "beta": 0.404,
+    "gamma": 0.228
+  },
+  "vote_accuracy": {
+    "werewolf": {
+      "correct": 0,
+      "total": 43
+    },
+    "villager": {
+      "correct": 14,
+      "total": 63
+    },
+    "seer": {
+      "correct": 6,
+      "total": 21
+    },
+    "doctor": {
+      "correct": 7,
+      "total": 24
+    }
+  },
+  "behavior_stats": {
+    "werewolf": {
+      "vote_vil": {
+        "accused_wolf": 0,
+        "accused_vil": 43,
+        "total": 43
+      }
+    },
+    "villager": {
+      "vote_wolf": {
+        "accused_wolf": 29,
+        "accused_vil": 0,
+        "total": 29
+      },
+      "vote_vil": {
+        "accused_wolf": 0,
+        "accused_vil": 34,
+        "total": 34
+      }
+    },
+    "seer": {
+      "vote_wolf": {
+        "accused_wolf": 12,
+        "accused_vil": 0,
+        "total": 12
+      },
+      "vote_vil": {
+        "accused_wolf": 0,
+        "accused_vil": 9,
+        "total": 9
+      }
+    },
+    "doctor": {
+      "vote_wolf": {
+        "accused_wolf": 14,
+        "accused_vil": 0,
+        "total": 14
+      },
+      "vote_vil": {
+        "accused_wolf": 0,
+        "accused_vil": 10,
+        "total": 10
+      }
+    }
+  }
+}

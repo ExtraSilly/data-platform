@@ -1,0 +1,24 @@
+# Virtual environment
+venv/
+.venv/
+env/
+.env/
+
+# Game logs
+werewolf_agentscope/data/logs/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
