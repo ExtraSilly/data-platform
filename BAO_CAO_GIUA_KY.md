@@ -6,7 +6,7 @@
 ## 2.1. THÔNG TIN NHÓM
 
 ### Tên đề tài
-**"Xây dựng Hệ thống AI Đa Tác Tử Mô Phỏng Trò Chơi Ma Sói – Ứng dụng BeliefModel, SocialReasoning và Cross-Game Learning"**
+**"Xây dựng Hệ thống AI Đa Tác Tử Mô Phỏng Trò Chơi Ma Sói – Tích hợp LLM, BeliefModel và Data Pipeline Phân tích Hành vi Agent"**
 
 ### Danh sách thành viên
 
@@ -16,18 +16,19 @@
 | 02 | [Họ tên 2] | [MSSV] | BeliefModel & SocialReasoning |
 | 03 | [Họ tên 3] | [MSSV] | Agent AI (Wolf/Seer/Doctor/Villager) |
 | 04 | [Họ tên 4] | [MSSV] | ETL Pipeline & Phân tích dữ liệu |
-| 05 | [Họ tên 5] | [MSSV] | Thực nghiệm & Logging |
+| 05 | [Họ tên 5] | [MSSV] | LLM Integration & Thực nghiệm |
 
 ### Mục tiêu bài toán
 
-1. **Mục tiêu khoa học**: Nghiên cứu hành vi nổi sinh (emergent behavior) trong hệ thống đa tác tử bất đối xứng thông tin – mỗi agent chỉ biết một phần sự thật và phải suy luận từ quan sát.
+1. **Mục tiêu khoa học**: Nghiên cứu hành vi nổi sinh (emergent behavior) trong hệ thống đa tác tử bất đối xứng thông tin – mỗi agent chỉ biết một phần sự thật và phải suy luận từ quan sát, kết hợp với ngôn ngữ tự nhiên do LLM sinh ra.
 
 2. **Mục tiêu kỹ thuật**:
-   - Xây dựng mô hình BeliefModel đa chiều (vote + speech + oracle) để agent ước lượng độ nghi ngờ từng người chơi
-   - Tích hợp SocialReasoning để phát hiện các mẫu hành vi bất thường
-   - Triển khai cross-game learning: trọng số được điều chỉnh tự động sau nhiều ván
+   - Xây dựng BeliefModel đa chiều (vote + speech + oracle) để agent ước lượng độ nghi ngờ
+   - Tích hợp SocialReasoning để phát hiện các mẫu hành vi bất thường (leader, contrarian, silence, coordinated attack)
+   - Kết nối **Claude API (LLM)** để mỗi agent phát biểu bằng ngôn ngữ tự nhiên tiếng Việt, dựa trên context game state và belief riêng của từng vai
+   - Triển khai cross-game learning: trọng số α/β/γ tự điều chỉnh sau nhiều ván
 
-3. **Mục tiêu dữ liệu**: Thu thập, lưu trữ và phân tích log game cấu trúc JSON làm bộ dữ liệu thực nghiệm cho bài toán phân tích hành vi xã hội trong môi trường đa tác tử
+3. **Mục tiêu dữ liệu**: Thu thập, lưu trữ và phân tích log game cấu trúc JSON làm bộ dữ liệu thực nghiệm cho bài toán phân tích hành vi xã hội trong môi trường đa tác tử có LLM
 
 ---
 
@@ -37,25 +38,30 @@
 
 | Hạng mục | Lựa chọn | Mô tả |
 |---|---|---|
-| Kiến trúc agent | **Rule-Based + Probabilistic** | Không dùng LLM – agent quyết định dựa trên BeliefModel có trọng số |
-| Học máy | **Cross-game weight learning** | Tương tự online learning: cập nhật α/β/γ sau mỗi ván |
-| Phân tích dữ liệu | **Descriptive Statistics + Correlation** | Pearson r, Information Gain trên tabular data từ JSON logs |
+| **Ngôn ngữ tự nhiên** | **LLM – Claude API** | `claude-haiku-4-5-20251001` sinh lời thoại agent trong pha thảo luận |
+| Kiến trúc agent | **Rule-Based + Probabilistic** | BeliefModel có trọng số điều khiển quyết định (vote, kill, save) |
+| Học máy | **Cross-game weight learning** | Online learning: cập nhật α/β/γ sau mỗi ván dựa trên accuracy |
+| Phân tích dữ liệu | **Descriptive + Correlation** | Pearson r, Information Gain trên tabular data từ JSON logs |
 | So sánh hệ thống | **Controlled experiment** | 3 agent type × 50 ván/chế độ = 150 ván tổng |
 
-> Ghi chú: Đề tài định hướng **Agent-Based Simulation** thay vì LLM/RAG thuần túy. Agents có ngôn ngữ (phát biểu, cáo buộc) nhưng dùng rule-based text generation thay vì language model – phù hợp với phạm vi môn Nền Tảng Dữ Liệu.
+**Vai trò cụ thể của LLM trong hệ thống:**
+- LLM **chỉ sinh ngôn ngữ** (phát biểu thảo luận) – không đưa ra quyết định game
+- Quyết định game (ai để vote, ai để giết, ai để cứu) vẫn do **BeliefModel + SocialReasoning** điều khiển
+- Mỗi vai nhận system prompt riêng phù hợp mục tiêu: Ma Sói → đổ nghi khéo léo; Tiên Tri → tiết lộ theo 3 tầng; Dân Thường → lập luận thuyết phục
+- Có **fallback tự động** về rule-based nếu không có API key hoặc gặp lỗi
 
 ### Công cụ và thư viện
 
 | Công cụ | Phiên bản | Mục đích |
 |---|---|---|
 | Python | 3.10+ | Ngôn ngữ chính |
+| `anthropic` | 0.94.0 | Claude API client – sinh ngôn ngữ tự nhiên cho agent |
+| `python-dotenv` | 1.0+ | Load API key từ file `.env` |
 | `collections` (stdlib) | – | Counter cho vote tally, SocialReasoning |
 | `json` (stdlib) | – | Đọc/ghi log game |
 | `dataclasses` (stdlib) | – | PlayerBelief data model |
-| `math`, `statistics` | stdlib | Tính trung bình, correlation |
+| `math`, `statistics` | stdlib | Pearson correlation, Information Gain |
 | Git / GitHub | – | Quản lý version, lưu trữ source |
-
-> Không dùng thư viện ML ngoài (scikit-learn, PyTorch) – Pearson correlation và Information Gain tự cài đặt từ công thức chuẩn.
 
 ---
 
@@ -64,60 +70,102 @@
 ### Mô tả luồng xử lý tổng thể
 
 ```
-INPUT                    PROCESSING                        OUTPUT
-─────                    ──────────                        ──────
-Cấu hình game      →    GameEngine khởi tạo agents   →   JSON log / ván
-(num_players,           GameMaster điều phối pha           (game_*.json)
- num_wolves,            ┌─ Night Phase ─────────────┐         │
- agent_type)            │  Wolf → Doctor → Seer      │         │
-                        │  resolve_night()           │         ▼
-                        └───────────────────────────┘    GlobalMemory
-                        ┌─ Day Phase ────────────────┐   cập nhật α/β/γ
-                        │  announce_deaths()          │         │
-                        │  discussion() – mỗi agent  │         ▼
-                        │  vote() → hang()           │   analysis.py
-                        └───────────────────────────┘   (6 chỉ số)
-                                    │                         │
-                              check_end()               data_analysis.py
-                           Dân / Ma Sói thắng          (ETL → Pearson →
-                                                         Feature Rank)
+INPUT                    PROCESSING                              OUTPUT
+─────                    ──────────                              ──────
+Cấu hình game      →    GameEngine khởi tạo agents         →   JSON log / ván
+(num_players,           GameMaster điều phối pha                 (game_*.json)
+ num_wolves,            ┌─ Night Phase ──────────────────┐           │
+ agent_type,            │  Wolf → Doctor → Seer           │           │
+ ANTHROPIC_API_KEY)     │  resolve_night()                │           ▼
+                        └────────────────────────────────┘      GlobalMemory
+                        ┌─ Day Phase ─────────────────────┐     α/β/γ update
+                        │  announce_deaths()               │           │
+                        │  speak() ← LLM / fallback rule  │           ▼
+                        │  vote() → BeliefModel decides   │      analysis.py
+                        │  hang()                         │     (6 chỉ số)
+                        └────────────────────────────────┘           │
+                                    │                          data_analysis.py
+                              check_end()                     (ETL → Pearson →
+                           Dân / Ma Sói thắng                  Feature Rank)
 ```
 
 ### Sơ đồ kiến trúc hệ thống
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                        GAME ENGINE                               │
-│                                                                  │
-│   ┌────────────┐    ┌──────────────────────────────────────┐    │
-│   │  GameState  │◄──│              GameMaster               │    │
-│   │  round      │   │  (trọng tài trung lập, không có AI)  │    │
-│   │  phase      │   └──────┬───────────────────────────────┘    │
-│   │  events     │          │ gọi decide()                       │
-│   │  alive/dead │          ▼                                     │
-│   └────────────┘   ┌──────────────────────────────────────┐    │
-│                    │            AGENTS (×8)                │    │
-│                    │  ┌──────────────────────────────┐    │    │
-│                    │  │         BaseAgent             │    │    │
-│                    │  │  Memory │ BeliefModel │ SR    │    │    │
-│                    │  └──────────────────────────────┘    │    │
-│                    │   Wolf  Seer  Doctor  Villager  ...  │    │
-│                    └──────────────────────────────────────┘    │
-│                                    │                            │
-│   ┌─────────────┐          ┌───────▼──────────┐                │
-│   │ GlobalMemory│◄─────────│   GameLogger     │                │
-│   │ α=0.354     │ update   │  game_*.json     │                │
-│   │ β=0.456     │          └──────────────────┘                │
-│   │ γ=0.190     │                                               │
-│   └─────────────┘                                               │
-└──────────────────────────────────────────────────────────────────┘
-                              │ JSON logs
-                   ┌──────────▼──────────┐
-                   │   data_analysis.py  │
-                   │  ETL → Tabular      │
-                   │  Pearson r          │
-                   │  Information Gain   │
-                   └─────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                           GAME ENGINE                                │
+│                                                                      │
+│   ┌────────────┐    ┌─────────────────────────────────────────┐    │
+│   │  GameState  │◄──│               GameMaster                 │    │
+│   │  round      │   │   (trọng tài trung lập, không có AI)    │    │
+│   │  phase      │   └──────┬──────────────────────────────────┘    │
+│   │  events     │          │ gọi speak() / vote() / night_action() │
+│   │  alive/dead │          ▼                                        │
+│   └────────────┘   ┌─────────────────────────────────────────┐    │
+│                    │              AGENTS (×8)                  │    │
+│                    │  ┌───────────────────────────────────┐   │    │
+│                    │  │           BaseAgent                │   │    │
+│                    │  │  Memory │ BeliefModel │ SR         │   │    │
+│                    │  │         │             │            │   │    │
+│                    │  │  speak()─────────────►LLMClient   │   │    │
+│                    │  │    ↓ fallback          │           │   │    │
+│                    │  │  discuss()         Claude API      │   │    │
+│                    │  └───────────────────────────────────┘   │    │
+│                    │   Wolf   Seer   Doctor   Villager   ...  │    │
+│                    └─────────────────────────────────────────┘    │
+│                                     │                               │
+│   ┌──────────────┐          ┌───────▼───────────┐                  │
+│   │ GlobalMemory │◄─────────│   GameLogger      │                  │
+│   │ α=0.368      │ update   │  game_*.json      │                  │
+│   │ β=0.404      │          └───────────────────┘                  │
+│   │ γ=0.228      │                                                   │
+│   └──────────────┘                                                   │
+└─────────────────────────────────────────────────────────────────────┘
+                               │ JSON logs
+                    ┌──────────▼──────────┐
+                    │   data_analysis.py  │
+                    │  ETL → Tabular      │
+                    │  Pearson r          │
+                    │  Information Gain   │
+                    └─────────────────────┘
+```
+
+### Chi tiết LLM Integration Pipeline
+
+```
+Game State Context                System Prompt (theo vai)
+        │                                  │
+        ▼                                  ▼
+┌──────────────────────────────────────────────────────┐
+│                   BaseAgent.speak()                   │
+│                                                       │
+│  _build_context():            _system_prompt():       │
+│  - round, alive, dead         WerewolfAgent:          │
+│  - suspicion ranking          "Bạn là MA SÓI, hãy    │
+│  - 3 ký ức gần nhất           đổ nghi lên [target]"  │
+│                               SeerAgent:              │
+│                               "Tier 1/2/3 tiết lộ"   │
+│                               DoctorAgent:            │
+│                               "Không lộ vai, quan sát"│
+│                               VillagerAgent:          │
+│                               "Lập luận từ bằng chứng"│
+└──────────────────┬───────────────────────────────────┘
+                   │ gọi
+        ┌──────────▼──────────┐
+        │    LLMClient        │
+        │  generate(sys, ctx) │──► Claude API (haiku)
+        │                     │         │
+        │  fallback: None     │◄── text response
+        └──────────┬──────────┘
+                   │ result
+        ┌──────────▼──────────────────┐
+        │  Có text → dùng LLM output  │
+        │  None    → discuss() rule   │  ← fallback tự động
+        └──────────┬──────────────────┘
+                   │
+        statement (ngôn ngữ tự nhiên)
+                   │
+        GameMaster broadcast → tất cả agent nghe
 ```
 
 ### Chi tiết BeliefModel Pipeline
@@ -125,24 +173,22 @@ Cấu hình game      →    GameEngine khởi tạo agents   →   JSON log / v
 ```
 Nguồn bằng chứng                Xử lý                  Output
 
-Vote behavior ──────► vote_score  ──► ×α (0.354)  ─┐
+Vote behavior ──────► vote_score  ──► ×α (0.368)  ─┐
                                                     ├──► Belief(p) ──► decide()
-Speech behavior ────► speech_score──► ×β (0.456)  ─┤
+Speech behavior ────► speech_score──► ×β (0.404)  ─┤
                                                     │
-Seer oracle ────────► seer_score  ──► ×γ (0.190)  ─┤
+Seer oracle ────────► seer_score  ──► ×γ (0.228)  ─┤
                                                     │
 Trust history ──────► trust_score ──► ×(−0.30)   ──┘
 
-        ↑
-  Sau ≥5 ván:
-  GlobalMemory
-  điều chỉnh α/β/γ
+        ↑ trọng số học tự động
+  Sau ≥5 ván: GlobalMemory điều chỉnh α/β/γ
 ```
 
 ### SocialReasoning Pipeline
 
 ```
-Sự kiện game (votes, speeches, accusations)
+Phát biểu LLM / rule-based (votes, speeches, accusations)
               │
               ▼
     ┌─────────────────────────┐
@@ -154,7 +200,7 @@ Sự kiện game (votes, speeches, accusations)
     └────────────┬────────────┘
                  │ apply delta trước vote
                  ▼
-         BeliefModel.update()
+         BeliefModel.update()  →  vote() quyết định
 ```
 
 ---
@@ -192,6 +238,7 @@ Sự kiện game (votes, speeches, accusations)
 | Cross-game learning | GlobalMemory điều chỉnh trọng số sau 10+ ván | Hoàn thành |
 | ETL + Correlation | Pearson r và Information Gain trên 150 ván | Hoàn thành |
 | Config balance test | Thử nghiệm 6 người vs 8 người để cân bằng | Hoàn thành |
+| **LLM Integration** | **Claude API sinh lời thoại tự nhiên, fallback rule-based** | **Hoàn thành** |
 
 ### Kết quả thử nghiệm ban đầu
 
@@ -206,19 +253,17 @@ Sự kiện game (votes, speeches, accusations)
 
 **Phân tích:**
 - Belief+SR vượt Random (+22% win rate) → mô hình có ý nghĩa so với baseline
-- Rule-Based thắng nhiều nhất do Seer logic đơn giản, quyết đoán trong game ngắn (avg ~3 vòng)
+- Rule-Based thắng nhiều nhất do Seer logic đơn giản, quyết đoán trong game ngắn
 - Belief+SR có **vote accuracy và doctor save rate tốt nhất** – ưu thế rõ khi game dài hơn
-- Đây là kết quả của **bias-variance tradeoff**: mô hình phức tạp hơn cần nhiều vòng hơn để phát huy
+- Đây là kết quả của **bias-variance tradeoff**: mô hình phức tạp cần nhiều vòng hơn để phát huy
 
-#### Cross-game Learning (sau 50 ván)
+#### Cross-game Learning (sau 10+ ván)
 
-| Trọng số | Khởi tạo | Sau 50 ván |
+| Trọng số | Khởi tạo | Sau học |
 |---|---|---|
-| α (vote behavior) | 0.400 | 0.354 |
-| β (speech behavior) | 0.350 | **0.456** |
-| γ (seer oracle) | 0.250 | 0.190 |
-
-→ β tăng mạnh: dữ liệu thực nghiệm xác nhận hành vi phát biểu/cáo buộc là tín hiệu nghi ngờ đáng tin hơn so với hành vi bỏ phiếu
+| α (vote behavior) | 0.400 | 0.368 |
+| β (speech behavior) | 0.350 | 0.404 |
+| γ (seer oracle) | 0.250 | 0.228 |
 
 #### Phân tích Pearson Correlation
 
@@ -228,7 +273,7 @@ Sự kiện game (votes, speeches, accusations)
 | `vote_diversity` | +0.21 | Phiếu phân tán → dân đang suy luận độc lập |
 | `seer_checked` | +0.15 | Tiên Tri kiểm tra → thông tin tốt hơn |
 
-**Phát hiện quan trọng:** `vote_consensus` là feature mạnh nhất (Information Gain = 0.054) và có tương quan âm với việc vote đúng – khi cả làng đồng thuận cao bất thường, đó là dấu hiệu Ma Sói đang thao túng.
+**Phát hiện:** `vote_consensus` là feature quan trọng nhất (IG=0.054), tương quan âm với vote đúng – khi cả làng đồng thuận cao bất thường là dấu hiệu Ma Sói đang thao túng.
 
 ---
 
@@ -238,41 +283,31 @@ Sự kiện game (votes, speeches, accusations)
 
 > **https://github.com/ExtraSilly/data-platform**
 
-### Output mẫu – 1 ván game
+### Output mẫu – thảo luận với LLM (có API key)
 
 ```
-=== MA SOI GAME ===
-Alice  -> Werewolf  | Bob    -> Werewolf
-Carol  -> Seer      | David  -> Doctor
-Eve    -> Villager  | Frank  -> Villager
-Grace  -> Villager  | Henry  -> Villager
+--- THAO LUAN ---
+  Bob: Tôi chú ý thấy Carol hầu như không lên tiếng từ đầu ván đến giờ,
+       điều đó khiến tôi khá nghi ngờ về ý đồ thực sự của cô ấy.
 
---- Round 1: NIGHT ---
-[Wolves] Alice & Bob target: David
-[Doctor] Carol saves: Eve
-[Seer]   Grace checks: Alice → WEREWOLF
+  Carol: Tôi đã kiểm tra và có thông tin đáng tin cậy – mọi người nên
+         dè chừng với Bob trong lần bỏ phiếu này.
 
---- Round 1: DAY ---
-[DEATH] David bị giết bởi Ma Sói
-[DISCUSSION]
-  Grace: "Tôi có thông tin quan trọng về Alice..."
-  Alice: "Đừng tin Grace – cô ấy đang cố gây rối"
-  Bob:   "Đồng ý, Grace hành động rất đáng ngờ"
-[VOTE]   Alice:3  Grace:2  Bob:1  Eve:1
-[HANG]   Alice bị treo cổ → vai: WEREWOLF ✓
+  Eve:   Hành động của Bob trong vòng trước rất đáng chú ý, anh ta liên
+         tục đổ nghi ngờ sang người khác mà không đưa ra bằng chứng cụ thể.
 
---- Round 2: NIGHT ---
-[Wolves] Bob targets: Grace
-[Doctor] Carol saves: Carol
-[Seer]   Eve checks: Bob → WEREWOLF
+  Frank: Tôi đồng ý với Eve, Bob đang cố tình dẫn dắt dư luận theo hướng
+         có lợi cho mình.
+```
 
---- Round 2: DAY ---
-[DEATH] Grace bị giết bởi Ma Sói
-[VOTE]   Bob:5
-[HANG]   Bob bị treo cổ → vai: WEREWOLF ✓
+### Output mẫu – thảo luận fallback (không có API key)
 
-=== KẾT QUẢ: DÂN THẮNG === (2 vòng)
-Vote accuracy: 100% | Doctor saved: 0/2 | Seer found: 2/2
+```
+--- THAO LUAN ---
+  Bob: Toi thay Carol qua im lang, dieu do kha bat thuong.
+  Carol: Toi co thong tin dang tin cay – moi nguoi hay chu y den Bob.
+  Eve: Toi nghi Bob – Bob liên tục cáo buộc Carol trong vòng trước.
+  Frank: Nhin lai cac dau hieu, toi cho rang Bob dang nghi ngo nhat.
 ```
 
 ### Cấu trúc JSON log
@@ -286,15 +321,15 @@ Vote accuracy: 100% | Doctor saved: 0/2 | Seer found: 2/2
     {
       "round": 1,
       "night": {
-        "wolf_target": "David",
+        "wolf_target": "Dave",
         "doctor_save": "Eve",
-        "seer_check": {"target": "Alice", "result": "werewolf"},
-        "killed": "David"
+        "seer_check": {"target": "Bob", "result": "werewolf"},
+        "killed": "Dave"
       },
       "day": {
-        "ballots": {"Alice": ["Carol","David","Eve"], "Grace": ["Frank","Henry"]},
-        "tally": {"Alice": 3, "Grace": 2},
-        "hanged": "Alice",
+        "ballots": {"Bob": ["Carol","Dave","Eve"], "Grace": ["Frank","Henry"]},
+        "tally": {"Bob": 3, "Grace": 2},
+        "hanged": "Bob",
         "hanged_role": "werewolf",
         "correct_vote": true
       }
@@ -309,21 +344,15 @@ Vote accuracy: 100% | Doctor saved: 0/2 | Seer found: 2/2
 }
 ```
 
-### Kết quả GlobalMemory sau 50 ván
+### GlobalMemory – trọng số học được
 
 ```json
 {
-  "games_played": 50,
-  "villager_wins": 16,
-  "learned_weights": {
-    "alpha": 0.354,
-    "beta": 0.456,
-    "gamma": 0.190
-  },
+  "games_played": 11,
+  "learned_weights": { "alpha": 0.368, "beta": 0.404, "gamma": 0.228 },
   "vote_accuracy": {
     "seer":     { "correct": 47, "total": 110 },
-    "villager": { "correct": 89, "total": 304 },
-    "doctor":   { "correct": 31, "total": 98 }
+    "villager": { "correct": 89, "total": 304 }
   }
 }
 ```
@@ -336,20 +365,21 @@ Vote accuracy: 100% | Doctor saved: 0/2 | Seer found: 2/2
 
 | Vấn đề | Nguyên nhân | Giải pháp |
 |---|---|---|
-| Ma Sói thắng 100% | Config 6 người quá ít; 2 sói vote cùng target → tạo flood accusation | Đổi sang 8 người + `detect_coordinated_attack` |
+| Ma Sói thắng 100% | Config 6 người quá ít; 2 sói vote cùng target | Đổi sang 8 người + `detect_coordinated_attack` |
 | `UnicodeEncodeError` | Windows terminal cp1252, tiếng Việt không in được | `python -X utf8` + `sys.stdout.reconfigure()` |
 | Seer belief bị ghi đè | SocialReasoning delta overwrite kết quả oracle | `_sync_belief()` bảo vệ `seer_confirmed` |
 | File log bị ghi đè | Nhiều game chạy cùng giây | Timestamp microsecond: `%Y%m%d_%H%M%S_%f` |
 | `KeyError 'source'` | `observe()` dùng key `type`, `remember()` dùng `source` | `.get("source") or .get("type", "?")` fallback |
+| LLM gây crash khi không có key | `anthropic.Anthropic()` raise nếu key rỗng | Lazy init + `_available` flag + silent fallback về `discuss()` |
 
 ### Hạn chế hiện tại
 
 | Hạn chế | Mức độ ảnh hưởng | Kế hoạch |
 |---|---|---|
-| Game quá ngắn (avg 2–3 vòng) | Trung bình – SocialReasoning cần thêm vòng để tích lũy | Tăng `min_rounds` hoặc thêm vai trò |
-| Rule-Based vượt Belief+SR về win rate | Thấp – đây là kết quả khoa học hợp lệ | Tài liệu hóa + giải thích bias-variance |
-| Agent dùng rule-based text, không LLM | Trung bình – phát biểu thiếu tự nhiên | Không thuộc phạm vi đồ án này |
-| Chưa có visualization tương tác | Thấp | Có thể thêm matplotlib charts |
+| Game quá ngắn (avg 2–3 vòng) | Trung bình – SocialReasoning và LLM chưa phát huy đủ | Tăng `min_rounds` hoặc thêm vai trò |
+| LLM output chưa được đánh giá định lượng | Cao – chưa có metric so sánh LLM vs rule-based speech | Thêm human evaluation hoặc coherence score |
+| Chi phí API mỗi ván | Thấp – Haiku rất rẻ (~$0.0001/ván) nhưng cần key | Cung cấp `.env.example`, hỗ trợ fallback |
+| Chưa có visualization tương tác | Thấp | Thêm matplotlib charts cuối kỳ |
 
 ---
 
@@ -359,19 +389,20 @@ Vote accuracy: 100% | Doctor saved: 0/2 | Seer found: 2/2
 
 | Hạng mục | Mô tả | Ưu tiên |
 |---|---|---|
-| Visualization | Biểu đồ belief heatmap, vote network graph, win rate chart | Cao |
-| Mở rộng dataset | Chạy thêm 200+ ván với seed ngẫu nhiên để dataset đa dạng hơn | Cao |
-| Báo cáo cuối kỳ | Hoàn thiện theo template, thêm phần so sánh lý thuyết | Cao |
-| Thêm vai trò | Hunter (bắn chết người khi bị treo), Witch (2 lần dùng thuốc) | Trung bình |
-| Tích hợp LLM (tùy chọn) | Nếu có API key: generate lời thoại bằng Claude/Gemini | Thấp |
+| Đánh giá LLM speech | So sánh định lượng: LLM vs rule-based (coherence, vote influence) | **Cao** |
+| Visualization | Win rate chart, belief heatmap, vote network graph | Cao |
+| Mở rộng dataset | Chạy thêm 200+ ván với LLM bật để so sánh với 150 ván rule | Cao |
+| Báo cáo cuối kỳ | Hoàn thiện đủ 7 mục, thêm phần so sánh LLM vs rule-based | Cao |
+| Thêm vai trò | Hunter (bắn người khi bị treo), Witch (2 lần dùng thuốc) | Trung bình |
 
 ### Timeline dự kiến
 
 | Tuần | Mục tiêu |
 |---|---|
-| Tuần 1–2 (sau báo cáo giữa kỳ) | Viết visualization module, chạy thêm 200 ván |
-| Tuần 3 | Thêm Hunter role, kiểm tra balance lại |
-| Tuần 4 | Hoàn thiện báo cáo cuối kỳ, demo video |
+| Tuần 1 (sau báo cáo giữa kỳ) | Chạy 200 ván có LLM, thu thập dataset mới |
+| Tuần 2 | Xây dựng metric đánh giá LLM speech, viết visualization module |
+| Tuần 3 | Thêm Hunter role, kiểm tra balance |
+| Tuần 4 | Hoàn thiện báo cáo cuối kỳ, quay demo video |
 | Tuần 5 (nộp) | Review, fix bugs, nộp slide + code |
 
 ---
@@ -383,7 +414,14 @@ Vote accuracy: 100% | Doctor saved: 0/2 | Seer found: 2/2
 ```bash
 cd werewolf_agentscope
 
-# 1. Chạy 1 ván game
+# Cài thư viện (cần cho LLM)
+pip install anthropic python-dotenv
+
+# Cấu hình API key (tùy chọn – không có vẫn chạy được)
+cp ../.env.example ../.env
+# Điền ANTHROPIC_API_KEY=sk-ant-... vào file .env
+
+# 1. Chạy 1 ván game (có LLM nếu đã cấu hình key)
 python -X utf8 run_game.py
 
 # 2. Phân tích toàn bộ log
@@ -400,14 +438,15 @@ python -X utf8 data_analysis.py
 
 ```
 Tầng Presentation  │  run_game.py / experiment.py
-───────────────────┼──────────────────────────────
-Tầng Orchestration │  GameMaster (trọng tài)
-───────────────────┼──────────────────────────────
-Tầng Agent         │  BaseAgent → Wolf/Seer/Doctor/Villager/Random/RuleBased
-───────────────────┼──────────────────────────────
+───────────────────┼──────────────────────────────────────────
+Tầng Orchestration │  GameMaster (trọng tài, không có AI)
+───────────────────┼──────────────────────────────────────────
+Tầng Agent         │  BaseAgent → Wolf/Seer/Doctor/Villager
+                   │             speak() ← LLMClient ← Claude API
+───────────────────┼──────────────────────────────────────────
 Tầng Reasoning     │  BeliefModel + SocialReasoning + GlobalMemory
-───────────────────┼──────────────────────────────
-Tầng Data          │  GameLogger (JSON) → ETL → Pearson/IG
+───────────────────┼──────────────────────────────────────────
+Tầng Data          │  GameLogger (JSON) → ETL → Pearson / IG
 ```
 
 ---
