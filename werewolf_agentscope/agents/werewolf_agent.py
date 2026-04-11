@@ -90,6 +90,24 @@ class WerewolfAgent(BaseAgent):
         )
         return {"action": "kill", "target": target}
 
+    # ── LLM: system prompt theo vai Ma Sói ───────────────────────────
+    def _system_prompt(self, game_state) -> str:
+        team = ", ".join(self.wolf_team) if self.wolf_team else "không có"
+        # Mục tiêu đổ nghi: người bị nghi ngờ nhất trong mắt ta
+        suspects = [
+            p for p in game_state.alive
+            if p != self.name and p not in self.wolf_team
+        ]
+        top_target = self.most_suspected(suspects) if suspects else "ai đó"
+        return (
+            f"Bạn tên {self.name}, đang chơi Ma Sói. Vai trò bí mật: MA SÓI. "
+            f"Đồng đội Ma Sói (chỉ bạn biết): {team}. "
+            f"Mục tiêu: không để bị lộ, đổ nghi ngờ sang dân làng một cách tự nhiên. "
+            f"Trong buổi thảo luận này, hãy khéo léo hướng sự chú ý sang {top_target}. "
+            f"KHÔNG được thừa nhận là Ma Sói. Nói tự nhiên như dân làng lo lắng. "
+            f"Trả lời bằng tiếng Việt, 1-2 câu, chỉ câu phát biểu, không có gì thêm."
+        )
+
     # ── DAY: giả vờ vô tội, đổ nghi ─────────────────────────────────
     def discuss(self, game_state) -> str:
         suspects = [

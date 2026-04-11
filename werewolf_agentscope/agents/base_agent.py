@@ -16,6 +16,7 @@ Nâng cấp so với phiên bản cơ bản:
 
 from .belief import BeliefModel
 from .social_reasoning import SocialReasoning
+from . import llm_client
 
 
 class BaseAgent:
@@ -141,6 +142,59 @@ class BaseAgent:
         raise NotImplementedError(
             f"{self.__class__.__name__} chua implement decide()."
         )
+
+    # ── LLM: xây dựng context và gọi API ────────────────────────────────
+    def _build_context(self, game_state) -> str:
+        """Xây dựng chuỗi context game state để gửi cho LLM."""
+        alive_list = ", ".join(game_state.alive)
+        dead_list  = ", ".join(game_state.dead) if game_state.dead else "chưa có"
+
+        # Xếp hạng nghi ngờ (top 3)
+        suspects = sorted(
+            [(p, self.belief.get(p, 0.5)) for p in game_state.alive if p != self.name],
+            key=lambda x: -x[1],
+        )
+        suspicion_text = ", ".join(f"{p}({v:.2f})" for p, v in suspects[:3])
+
+        # 3 ký ức gần nhất
+        recent = self.recall(last_n=3)
+        memory_text = "; ".join(
+            e.get("event", e.get("msg", "")) for e in recent
+        ) or "không có"
+
+        return (
+            f"Vòng {game_state.round}. "
+            f"Người còn sống: {alive_list}. "
+            f"Người đã chết: {dead_list}. "
+            f"Mức nghi ngờ của tôi (cao→thấp): {suspicion_text}. "
+            f"Ký ức gần đây: {memory_text}."
+        )
+
+    def _system_prompt(self, game_state) -> str:
+        """System prompt mặc định – subclass override với prompt theo vai."""
+        return (
+            f"Bạn tên {self.name}, đang chơi trò chơi Ma Sói. "
+            f"Hãy phát biểu 1-2 câu ngắn bằng tiếng Việt, tự nhiên và phù hợp với tình huống. "
+            f"Chỉ trả lời bằng câu phát biểu, không giải thích thêm."
+        )
+
+    def speak(self, game_state) -> str:
+        """
+        Phát biểu bằng ngôn ngữ tự nhiên (LLM-powered).
+        Tự động fallback về discuss() nếu LLM không available hoặc lỗi.
+        """
+        system_prompt = self._system_prompt(game_state)
+        context       = self._build_context(game_state)
+
+        result = llm_client.generate(system_prompt, context, max_tokens=100)
+        if result:
+            # Đảm bảo tên người nói xuất hiện ở đầu câu
+            if not result.startswith(self.name):
+                result = f"{self.name}: {result}"
+            return result
+
+        # Fallback: rule-based discuss()
+        return self.discuss(game_state)
 
     # ── Convenience wrappers ──────────────────────────────────────────
     def night_action(self, game_state) -> dict:

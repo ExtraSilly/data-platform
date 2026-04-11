@@ -104,6 +104,32 @@ class DoctorAgent(BaseAgent):
         )
         return {"action": "save", "target": target}
 
+    # ── LLM: system prompt theo vai Bác Sĩ ───────────────────────────
+    def _system_prompt(self, game_state) -> str:
+        suspects = [p for p in game_state.alive if p != self.name]
+        influence = {
+            p: sum(1 for e in self.memory if p in e.get("event", "") or p in e.get("msg", ""))
+            for p in suspects
+        }
+        quietest   = min(suspects, key=lambda p: influence[p]) if suspects else None
+        most_vocal = max(suspects, key=lambda p: influence[p]) if suspects else None
+
+        if quietest and influence.get(quietest, 0) == 0:
+            observation = f"{quietest} chưa phát biểu gì cả, điều này bất thường"
+        elif most_vocal:
+            observation = f"{most_vocal} nói rất nhiều, cần xem xét động cơ thực sự"
+        else:
+            top = self.most_suspected(suspects) if suspects else "ai đó"
+            observation = f"{top} có hành vi đáng chú ý"
+
+        return (
+            f"Bạn tên {self.name}, đang chơi Ma Sói. Vai trò bí mật: BÁC SĨ. "
+            f"TUYỆT ĐỐI không tiết lộ bạn là Bác Sĩ. "
+            f"Nhận xét dựa trên quan sát: {observation}. "
+            f"Chia sẻ quan sát một cách tự nhiên như dân làng bình thường. "
+            f"Trả lời bằng tiếng Việt, 1-2 câu, chỉ câu phát biểu, không có gì thêm."
+        )
+
     # ── DAY: quan sát, không lộ vai ───────────────────────────────────
     def discuss(self, game_state) -> str:
         """Nhận xét dựa trên quan sát, không bao giờ tự khai là Bác Sĩ."""

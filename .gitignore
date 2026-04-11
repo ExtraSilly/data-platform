@@ -1,3 +1,6 @@
+# API keys – KHÔNG bao giờ commit file này
+.env
+
 # Virtual environment
 venv/
 .venv/

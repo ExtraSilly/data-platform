@@ -99,6 +99,40 @@ class SeerAgent(BaseAgent):
             f"{target} -> {result.upper()}"
         )
 
+    # ── LLM: system prompt theo vai Tiên Tri ─────────────────────────
+    def _system_prompt(self, game_state) -> str:
+        alive = game_state.alive
+        alive_wolves    = [p for p, r in self.checked.items() if r == "werewolf" and p in alive]
+        alive_villagers = [p for p, r in self.checked.items() if r == "villager" and p in alive]
+
+        known_danger = len(alive_wolves) / max(len(alive), 1)
+        critical = len(alive) <= 4 or known_danger >= 0.3
+
+        wolf_info = f"đã xác nhận là Ma Sói: {', '.join(alive_wolves)}" if alive_wolves else "chưa tìm ra Ma Sói"
+        safe_info = f"Đã xác nhận vô tội: {', '.join(alive_villagers)}. " if alive_villagers else ""
+
+        if critical and alive_wolves:
+            task = (
+                f"Tình huống NGUY CẤP! Hãy tiết lộ thẳng rằng bạn là Tiên Tri "
+                f"và {alive_wolves[0]} chắc chắn là Ma Sói. Kêu gọi mọi người bỏ phiếu loại ngay."
+            )
+        elif alive_wolves:
+            task = (
+                f"Hãy gợi ý kín đáo mọi người để ý đến {alive_wolves[0]} "
+                f"mà không tiết lộ bạn là Tiên Tri (tránh bị Ma Sói nhắm)."
+            )
+        else:
+            suspects = [p for p in alive if p != self.name]
+            top = self.most_suspected(suspects) if suspects else "ai đó"
+            task = f"Chia sẻ quan sát tự nhiên, gợi ý {top} có vẻ đáng ngờ."
+
+        return (
+            f"Bạn tên {self.name}, đang chơi Ma Sói. Vai trò bí mật: TIÊN TRI. "
+            f"Thông tin oracle (chỉ bạn biết): {wolf_info}. {safe_info}"
+            f"{task} "
+            f"Trả lời bằng tiếng Việt, 1-2 câu, chỉ câu phát biểu, không có gì thêm."
+        )
+
     # ── DAY: tiết lộ thận trọng, chỉ công bố khi có bằng chứng mạnh ──
     def discuss(self, game_state) -> str:
         """

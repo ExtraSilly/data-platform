@@ -211,7 +211,7 @@ class GameMaster:
         s.add_event("system", f"\n--- THAO LUAN ---")
 
         for name in list(s.alive):
-            statement = self.agents[name].discuss(s)
+            statement = self.agents[name].speak(s)   # LLM-powered, fallback rule-based
             s.add_event("discuss", f"  {statement}")
 
             # Broadcast: tất cả agent còn sống nghe phát biểu này

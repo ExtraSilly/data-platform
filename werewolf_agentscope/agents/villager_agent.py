@@ -46,6 +46,23 @@ class VillagerAgent(BaseAgent):
 
         return {"action": "discuss", "target": None, "msg": self.discuss(game_state)}
 
+    # ── LLM: system prompt theo vai Dân Thường ───────────────────────
+    def _system_prompt(self, game_state) -> str:
+        self._update_belief_from_memory(game_state)
+        suspects = [p for p in game_state.alive if p != self.name]
+        top = self.most_suspected(suspects) if suspects else "ai đó"
+        evidence = self._find_evidence(top)
+
+        evidence_hint = f"Bằng chứng: {evidence[:80]}..." if evidence else "chưa có bằng chứng cụ thể"
+
+        return (
+            f"Bạn tên {self.name}, đang chơi Ma Sói. Vai trò: DÂN THƯỜNG. "
+            f"Bạn không biết ai là Ma Sói, phải suy luận từ hành vi quan sát được. "
+            f"Người bạn nghi ngờ nhất hiện tại: {top}. {evidence_hint}. "
+            f"Hãy trình bày suy luận của bạn một cách thuyết phục để cộng đồng tin. "
+            f"Trả lời bằng tiếng Việt, 1-2 câu, chỉ câu phát biểu, không có gì thêm."
+        )
+
     # ── DAY: suy luận từ memory ────────────────────────────────────────
     def discuss(self, game_state) -> str:
         """
