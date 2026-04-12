@@ -1,91 +1,161 @@
 """
-LLMClient – wrapper gọi Claude API để sinh ngôn ngữ tự nhiên cho agents.
+LLMClient – wrapper đa nhà cung cấp LLM cho agents.
 
-Thiết kế:
-  - Hỗ trợ Claude (anthropic library), model claude-haiku-4-5-20251001
-  - Lazy init: chỉ khởi tạo client khi lần đầu gọi generate()
-  - Fallback hoàn toàn im lặng: trả None nếu không có API key hoặc lỗi
-  - Caller (BaseAgent.speak) tự dùng rule-based discuss() khi nhận None
+Hỗ trợ 3 provider, chọn qua biến môi trường LLM_PROVIDER:
+  - "gemini"    : Google Gemini Flash (miễn phí 1500 req/ngày) ← MẶC ĐỊNH
+  - "ollama"    : Chạy local hoàn toàn miễn phí (cần cài Ollama)
+  - "claude"    : Anthropic Claude Haiku (trả phí)
 
-Cách cấu hình:
-  Tạo file .env (hoặc set environment variable):
-      ANTHROPIC_API_KEY=sk-ant-...
+Cách cấu hình (.env):
+  LLM_PROVIDER=gemini
+  GEMINI_API_KEY=AIza...          # lấy miễn phí tại aistudio.google.com
 
-Cách dùng:
-  from agents.llm_client import generate
-  text = generate(system_prompt, user_message)   # None nếu không có key
+  LLM_PROVIDER=ollama
+  OLLAMA_MODEL=qwen2.5:3b         # hoặc llama3.2, gemma3, v.v.
+  OLLAMA_URL=http://localhost:11434  # mặc định
+
+  LLM_PROVIDER=claude
+  ANTHROPIC_API_KEY=sk-ant-...
+
+Nếu không cấu hình gì → fallback về rule-based discuss() tự động.
 """
 
 import os
 
-_client = None          # singleton, khởi tạo lần đầu
-_available: bool | None = None  # cache trạng thái availability
+_provider: str | None = None   # "gemini" | "ollama" | "claude" | None
+_client = None                  # client object (Gemini / Anthropic)
+_initialized = False
 
 
-def _init() -> bool:
-    """Khởi tạo Anthropic client. Trả True nếu thành công."""
-    global _client, _available
-    if _available is not None:
-        return _available
-
-    # Thử load .env nếu có python-dotenv
+def _load_env() -> None:
     try:
         from dotenv import load_dotenv
         load_dotenv()
     except ImportError:
         pass
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-    if not api_key:
-        _available = False
+
+def _init() -> bool:
+    """Khởi tạo provider một lần duy nhất. Trả True nếu thành công."""
+    global _provider, _client, _initialized
+    if _initialized:
+        return _provider is not None
+    _initialized = True
+    _load_env()
+
+    provider = os.environ.get("LLM_PROVIDER", "").strip().lower()
+
+    # ── Gemini ──────────────────────────────────────────────────────────
+    if provider == "gemini":
+        key = os.environ.get("GEMINI_API_KEY", "").strip()
+        if not key:
+            print("[LLMClient] GEMINI_API_KEY chưa đặt. Fallback rule-based.")
+            return False
+        try:
+            from google import genai
+            _client = genai.Client(api_key=key)
+            _provider = "gemini"
+            print("[LLMClient] Gemini 2.0 Flash ready (miễn phí)")
+            return True
+        except ImportError:
+            print("[LLMClient] Chưa cài google-genai. Chạy: pip install google-genai")
+        except Exception as e:
+            print(f"[LLMClient] Gemini lỗi: {e}")
         return False
 
-    try:
-        import anthropic
-        _client = anthropic.Anthropic(api_key=api_key)
-        _available = True
-        print("[LLMClient] Claude API ready (claude-haiku-4-5-20251001)")
-    except ImportError:
-        print("[LLMClient] Thư viện 'anthropic' chưa cài. Chạy: pip install anthropic")
-        _available = False
-    except Exception as e:
-        print(f"[LLMClient] Lỗi khởi tạo API: {e}")
-        _available = False
+    # ── Ollama (local) ───────────────────────────────────────────────────
+    if provider == "ollama":
+        _provider = "ollama"
+        model = os.environ.get("OLLAMA_MODEL", "qwen2.5:3b")
+        url   = os.environ.get("OLLAMA_URL", "http://localhost:11434")
+        # Kiểm tra Ollama đang chạy không
+        try:
+            import requests
+            requests.get(f"{url}/api/tags", timeout=3)
+            print(f"[LLMClient] Ollama ready – model: {model}")
+            return True
+        except Exception:
+            print(f"[LLMClient] Ollama chưa chạy tại {url}. Fallback rule-based.")
+            _provider = None
+            return False
 
-    return _available
+    # ── Claude ──────────────────────────────────────────────────────────
+    if provider == "claude":
+        key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+        if not key:
+            print("[LLMClient] ANTHROPIC_API_KEY chưa đặt. Fallback rule-based.")
+            return False
+        try:
+            import anthropic
+            _client = anthropic.Anthropic(api_key=key)
+            _provider = "claude"
+            print("[LLMClient] Claude Haiku ready")
+            return True
+        except ImportError:
+            print("[LLMClient] Chưa cài anthropic. Chạy: pip install anthropic")
+        except Exception as e:
+            print(f"[LLMClient] Claude lỗi: {e}")
+        return False
+
+    # ── Không cấu hình ──────────────────────────────────────────────────
+    return False
 
 
 def is_available() -> bool:
-    """Kiểm tra LLM có sẵn sàng không."""
     return _init()
 
 
 def generate(system_prompt: str, user_message: str, max_tokens: int = 100) -> str | None:
     """
-    Gọi Claude API để sinh text.
-
-    Args:
-        system_prompt: Hướng dẫn vai trò và nhiệm vụ cho agent
-        user_message:  Context game hiện tại (round, alive, memory, belief)
-        max_tokens:    Giới hạn độ dài output (mặc định 100 ≈ 1-2 câu)
-
-    Returns:
-        Chuỗi text ngôn ngữ tự nhiên, hoặc None nếu không available / lỗi
+    Sinh text từ provider đã cấu hình.
+    Trả None nếu không available hoặc gặp lỗi → caller fallback rule-based.
     """
     if not _init():
         return None
 
+    prompt_full = f"{system_prompt}\n\n{user_message}"
+
     try:
-        message = _client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=max_tokens,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_message}],
-        )
-        text = message.content[0].text.strip()
-        # Loại bỏ trích dẫn dư thừa nếu model trả về trong quotes
-        text = text.strip('"').strip("'")
-        return text if text else None
-    except Exception as e:
-        # Im lặng, để caller fallback về rule-based
-        return None
+        # ── Gemini ──────────────────────────────────────────────────────
+        if _provider == "gemini":
+            from google.genai import types
+            resp = _client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=prompt_full,
+                config=types.GenerateContentConfig(
+                    max_output_tokens=max_tokens,
+                    temperature=0.8,
+                ),
+            )
+            text = resp.text.strip().strip('"').strip("'")
+            return text or None
+
+        # ── Ollama ──────────────────────────────────────────────────────
+        if _provider == "ollama":
+            import requests, json
+            model = os.environ.get("OLLAMA_MODEL", "qwen2.5:3b")
+            url   = os.environ.get("OLLAMA_URL", "http://localhost:11434")
+            resp = requests.post(
+                f"{url}/api/generate",
+                json={"model": model, "prompt": prompt_full, "stream": False,
+                      "options": {"num_predict": max_tokens, "temperature": 0.8}},
+                timeout=30,
+            )
+            text = resp.json().get("response", "").strip().strip('"').strip("'")
+            return text or None
+
+        # ── Claude ──────────────────────────────────────────────────────
+        if _provider == "claude":
+            msg = _client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=max_tokens,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_message}],
+            )
+            text = msg.content[0].text.strip().strip('"').strip("'")
+            return text or None
+
+    except Exception:
+        pass
+
+    return None
