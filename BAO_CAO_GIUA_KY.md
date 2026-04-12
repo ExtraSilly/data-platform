@@ -38,7 +38,7 @@
 
 | Hạng mục | Lựa chọn | Mô tả |
 |---|---|---|
-| **Ngôn ngữ tự nhiên** | **LLM – Claude API** | `claude-haiku-4-5-20251001` sinh lời thoại agent trong pha thảo luận |
+| **Ngôn ngữ tự nhiên** | **LLM – Google Gemini API** | `gemini-2.5-flash-lite` sinh lời thoại agent trong pha thảo luận (miễn phí) |
 | Kiến trúc agent | **Rule-Based + Probabilistic** | BeliefModel có trọng số điều khiển quyết định (vote, kill, save) |
 | Học máy | **Cross-game weight learning** | Online learning: cập nhật α/β/γ sau mỗi ván dựa trên accuracy |
 | Phân tích dữ liệu | **Descriptive + Correlation** | Pearson r, Information Gain trên tabular data từ JSON logs |
@@ -55,7 +55,7 @@
 | Công cụ | Phiên bản | Mục đích |
 |---|---|---|
 | Python | 3.10+ | Ngôn ngữ chính |
-| `anthropic` | 0.94.0 | Claude API client – sinh ngôn ngữ tự nhiên cho agent |
+| `google-genai` | 1.0+ | Google Gemini API client – sinh ngôn ngữ tự nhiên cho agent (miễn phí) |
 | `python-dotenv` | 1.0+ | Load API key từ file `.env` |
 | `collections` (stdlib) | – | Counter cho vote tally, SocialReasoning |
 | `json` (stdlib) | – | Đọc/ghi log game |
@@ -238,7 +238,7 @@ Phát biểu LLM / rule-based (votes, speeches, accusations)
 | Cross-game learning | GlobalMemory điều chỉnh trọng số sau 10+ ván | Hoàn thành |
 | ETL + Correlation | Pearson r và Information Gain trên 150 ván | Hoàn thành |
 | Config balance test | Thử nghiệm 6 người vs 8 người để cân bằng | Hoàn thành |
-| **LLM Integration** | **Claude API sinh lời thoại tự nhiên, fallback rule-based** | **Hoàn thành** |
+| **LLM Integration** | **Gemini 2.5 Flash Lite sinh lời thoại tự nhiên tiếng Việt, fallback rule-based** | **Hoàn thành** |
 
 ### Kết quả thử nghiệm ban đầu
 
@@ -283,31 +283,43 @@ Phát biểu LLM / rule-based (votes, speeches, accusations)
 
 > **https://github.com/ExtraSilly/data-platform**
 
-### Output mẫu – thảo luận với LLM (có API key)
+### Output mẫu – thảo luận với Gemini (output thực tế)
+
+Ván game chạy thật, pha thảo luận ngày 2 (Alice bị giết đêm trước):
 
 ```
 --- THAO LUAN ---
-  Bob: Tôi chú ý thấy Carol hầu như không lên tiếng từ đầu ván đến giờ,
-       điều đó khiến tôi khá nghi ngờ về ý đồ thực sự của cô ấy.
+  Bob:   Tôi nghi ngờ Carol và Dave như nhau vì hành vi của họ trong đêm
+         Alice bị giết, và Eve cũng khiến tôi không yên tâm.
 
-  Carol: Tôi đã kiểm tra và có thông tin đáng tin cậy – mọi người nên
-         dè chừng với Bob trong lần bỏ phiếu này.
+  Carol: Dave hành động hơi lạ đêm qua, tôi không hiểu sao anh ta lại
+         đi lang thang một mình thế.
 
-  Eve:   Hành động của Bob trong vòng trước rất đáng chú ý, anh ta liên
-         tục đổ nghi ngờ sang người khác mà không đưa ra bằng chứng cụ thể.
+  Dave:  Frank im lặng nãy giờ, có gì đó không ổn.
 
-  Frank: Tôi đồng ý với Eve, Bob đang cố tình dẫn dắt dư luận theo hướng
-         có lợi cho mình.
+  Eve:   Dave nói Frank im lặng là vì muốn hướng sự chú ý của mọi người
+         ra khỏi bản thân, đây là hành vi rất giống Ma Sói.
+
+  Frank: Thật kỳ lạ là đêm qua Dave lại đi lang thang một mình, liệu
+         có ai thấy anh ta ở đâu không?
+
+  Grace: Dave có hành vi lảng tránh khi bị chất vấn, cộng với việc anh
+         ta ám chỉ Frank đáng ngờ chỉ vì Frank đặt câu hỏi về Dave,
+         điều này khiến tôi tin Dave là Ma Sói.
+
+  Henry: Carol có vẻ đang cố gắng lái câu chuyện đi hướng khác,
+         tôi thấy khá bất ngờ.
 ```
 
-### Output mẫu – thảo luận fallback (không có API key)
+*Agent nói tiếng Việt tự nhiên có dấu, mỗi người có lập luận riêng dựa trên BeliefModel của mình.*
+
+### Output mẫu – fallback (không có API key)
 
 ```
 --- THAO LUAN ---
   Bob: Toi thay Carol qua im lang, dieu do kha bat thuong.
   Carol: Toi co thong tin dang tin cay – moi nguoi hay chu y den Bob.
-  Eve: Toi nghi Bob – Bob liên tục cáo buộc Carol trong vòng trước.
-  Frank: Nhin lai cac dau hieu, toi cho rang Bob dang nghi ngo nhat.
+  Eve: Nhin lai cac dau hieu, toi cho rang Bob dang nghi ngo nhat.
 ```
 
 ### Cấu trúc JSON log
@@ -370,7 +382,8 @@ Phát biểu LLM / rule-based (votes, speeches, accusations)
 | Seer belief bị ghi đè | SocialReasoning delta overwrite kết quả oracle | `_sync_belief()` bảo vệ `seer_confirmed` |
 | File log bị ghi đè | Nhiều game chạy cùng giây | Timestamp microsecond: `%Y%m%d_%H%M%S_%f` |
 | `KeyError 'source'` | `observe()` dùng key `type`, `remember()` dùng `source` | `.get("source") or .get("type", "?")` fallback |
-| LLM gây crash khi không có key | `anthropic.Anthropic()` raise nếu key rỗng | Lazy init + `_available` flag + silent fallback về `discuss()` |
+| LLM gây crash khi không có key | `genai.Client()` raise nếu key rỗng | Lazy init + `_initialized` flag + silent fallback về `discuss()` |
+| `gemini-2.0-flash` không có free tier | Quota limit: 0 cho tài khoản free | Chuyển sang `gemini-2.5-flash-lite` (có free tier) |
 
 ### Hạn chế hiện tại
 
@@ -417,9 +430,10 @@ cd werewolf_agentscope
 # Cài thư viện (cần cho LLM)
 pip install anthropic python-dotenv
 
-# Cấu hình API key (tùy chọn – không có vẫn chạy được)
-cp ../.env.example ../.env
-# Điền ANTHROPIC_API_KEY=sk-ant-... vào file .env
+# Cấu hình API key Gemini (miễn phí – lấy tại aistudio.google.com)
+# Tạo file .env với nội dung:
+#   LLM_PROVIDER=gemini
+#   GEMINI_API_KEY=AIza...
 
 # 1. Chạy 1 ván game (có LLM nếu đã cấu hình key)
 python -X utf8 run_game.py

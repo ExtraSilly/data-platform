@@ -55,7 +55,7 @@ def _init() -> bool:
             from google import genai
             _client = genai.Client(api_key=key)
             _provider = "gemini"
-            print("[LLMClient] Gemini 2.0 Flash ready (miễn phí)")
+            print("[LLMClient] Gemini 2.5 Flash Lite ready (miễn phí)")
             return True
         except ImportError:
             print("[LLMClient] Chưa cài google-genai. Chạy: pip install google-genai")
@@ -120,7 +120,7 @@ def generate(system_prompt: str, user_message: str, max_tokens: int = 100) -> st
         if _provider == "gemini":
             from google.genai import types
             resp = _client.models.generate_content(
-                model="gemini-2.0-flash",
+                model="gemini-2.5-flash-lite",
                 contents=prompt_full,
                 config=types.GenerateContentConfig(
                     max_output_tokens=max_tokens,
