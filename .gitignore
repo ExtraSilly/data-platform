@@ -12,7 +12,8 @@ werewolf_agentscope/data/logs/
 
 # Báo cáo nội bộ
 BAO_CAO_GIUA_KY.md
-
+report.md
+re.md
 # Python
 __pycache__/
 *.py[cod]
