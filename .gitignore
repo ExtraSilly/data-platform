@@ -10,6 +10,9 @@ env/
 # Game logs
 werewolf_agentscope/data/logs/
 
+# Báo cáo nội bộ
+BAO_CAO_GIUA_KY.md
+
 # Python
 __pycache__/
 *.py[cod]
